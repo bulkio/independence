@@ -3652,6 +3652,97 @@ var rootRef = firebase.database().ref();
 {
     'use strict';
 
+    config.$inject = ["$stateProvider", "$translatePartialLoaderProvider", "msApiProvider", "msNavigationServiceProvider"];
+    angular
+        .module('app.admin.containers',
+            [
+                // 3rd Party Dependencies
+                'dx'
+            ]
+        )
+        .config(config);
+
+    /** @ngInject */
+    function config($stateProvider, $translatePartialLoaderProvider, msApiProvider, msNavigationServiceProvider)
+    {
+        // State
+        $stateProvider
+            .state('app.containers', {
+                abstract: true,
+                url     : '/containers'
+            })
+            .state('app.containers.list', {
+                url      : '/list',
+                views    : {
+                    'content@app': {
+                        templateUrl: 'app/main/admin/containers/views/list-view/containers.html',
+                        controller : 'ContainersController as vm'
+                    }
+                },
+                 resolve : {
+                    currentAuth: ["auth", function (auth) {
+                        // returns a promisse so the resolve waits for it to complete
+                        return auth.$requireSignIn();
+                    }],
+                    tenantInfo: ["auth", "authService", function(auth, authService){
+                        return authService.retrieveTenant();
+                    }],
+                    settings: ["adminService", function(adminService) {
+                        return adminService.getCurrentSettings();
+                    }]
+                },
+                bodyClass: 'containers'
+            });
+
+        // Translation
+        $translatePartialLoaderProvider.addPart('app/main/admin/containers');
+
+        // Api
+        msApiProvider.register('containers.dashboard', ['app/data/e-commerce/dashboard.json']);
+        msApiProvider.register('containers.products', ['app/data/e-commerce/products.json']);
+        msApiProvider.register('containers.product', ['app/data/e-commerce/product.json']);
+        msApiProvider.register('containers.orders', ['app/data/e-commerce/orders.json']);
+        msApiProvider.register('containers.statuses', ['app/data/e-commerce/statuses.json']);
+        msApiProvider.register('containers.order', ['app/data/e-commerce/order.json']);
+
+        // Navigation
+
+        msNavigationServiceProvider.saveItem('admin.containers', {
+            title: 'Containers',
+            state: 'app.containers.list'
+        });
+    }
+})();
+(function ()
+{
+    'use strict';
+
+    ContainersController.$inject = ["$state", "$scope", "$mdDialog", "$document", "containerService"];
+    angular
+        .module('app.admin.containers')
+        .controller('ContainersController', ContainersController);
+
+    /** @ngInject */
+    function ContainersController($state, $scope, $mdDialog, $document, containerService)
+    {
+        var vm = this;
+
+        // Data
+        
+        // Methods
+        init();
+        //////////
+
+        function init() {
+            vm.containerGridOptions = containerService.gridOptions('vm.containers');
+        }
+
+    }
+})();
+(function ()
+{
+    'use strict';
+
     CustomersController.$inject = ["$state", "$scope", "$mdDialog", "$document", "customerService"];
     angular
         .module('app.admin.customers')
@@ -3761,97 +3852,6 @@ var rootRef = firebase.database().ref();
     }
 })();
 
-(function ()
-{
-    'use strict';
-
-    config.$inject = ["$stateProvider", "$translatePartialLoaderProvider", "msApiProvider", "msNavigationServiceProvider"];
-    angular
-        .module('app.admin.containers',
-            [
-                // 3rd Party Dependencies
-                'dx'
-            ]
-        )
-        .config(config);
-
-    /** @ngInject */
-    function config($stateProvider, $translatePartialLoaderProvider, msApiProvider, msNavigationServiceProvider)
-    {
-        // State
-        $stateProvider
-            .state('app.containers', {
-                abstract: true,
-                url     : '/containers'
-            })
-            .state('app.containers.list', {
-                url      : '/list',
-                views    : {
-                    'content@app': {
-                        templateUrl: 'app/main/admin/containers/views/list-view/containers.html',
-                        controller : 'ContainersController as vm'
-                    }
-                },
-                 resolve : {
-                    currentAuth: ["auth", function (auth) {
-                        // returns a promisse so the resolve waits for it to complete
-                        return auth.$requireSignIn();
-                    }],
-                    tenantInfo: ["auth", "authService", function(auth, authService){
-                        return authService.retrieveTenant();
-                    }],
-                    settings: ["adminService", function(adminService) {
-                        return adminService.getCurrentSettings();
-                    }]
-                },
-                bodyClass: 'containers'
-            });
-
-        // Translation
-        $translatePartialLoaderProvider.addPart('app/main/admin/containers');
-
-        // Api
-        msApiProvider.register('containers.dashboard', ['app/data/e-commerce/dashboard.json']);
-        msApiProvider.register('containers.products', ['app/data/e-commerce/products.json']);
-        msApiProvider.register('containers.product', ['app/data/e-commerce/product.json']);
-        msApiProvider.register('containers.orders', ['app/data/e-commerce/orders.json']);
-        msApiProvider.register('containers.statuses', ['app/data/e-commerce/statuses.json']);
-        msApiProvider.register('containers.order', ['app/data/e-commerce/order.json']);
-
-        // Navigation
-
-        msNavigationServiceProvider.saveItem('admin.containers', {
-            title: 'Containers',
-            state: 'app.containers.list'
-        });
-    }
-})();
-(function ()
-{
-    'use strict';
-
-    ContainersController.$inject = ["$state", "$scope", "$mdDialog", "$document", "containerService"];
-    angular
-        .module('app.admin.containers')
-        .controller('ContainersController', ContainersController);
-
-    /** @ngInject */
-    function ContainersController($state, $scope, $mdDialog, $document, containerService)
-    {
-        var vm = this;
-
-        // Data
-        
-        // Methods
-        init();
-        //////////
-
-        function init() {
-            vm.containerGridOptions = containerService.gridOptions('vm.containers');
-        }
-
-    }
-})();
 (function ()
 {
     'use strict';
@@ -5842,6 +5842,112 @@ var rootRef = firebase.database().ref();
 (function () {
     'use strict';
 
+    containerService.$inject = ["$firebaseArray", "$firebaseObject", "$q", "authService", "auth", "firebaseUtils", "dxUtils", "config"];
+    angular
+        .module('app.admin.containers')
+        .factory('containerService', containerService);
+
+    /** @ngInject */
+    function containerService($firebaseArray, $firebaseObject, $q, authService, auth,firebaseUtils, dxUtils, config) {
+        var tenantId = authService.getCurrentTenant();
+        // Private variables
+
+        var service = {
+            gridOptions: gridOptions,
+            saveContainer: saveContainer,
+            updateContainer: updateContainer,
+            fetchContainerList: fetchContainerList
+        };
+
+        return service;
+
+        //////////
+
+        /**
+         * Grid Options for container list
+         * @param {Object} dataSource 
+         */
+        function gridOptions(dataSource) {
+            var gridOptions = dxUtils.createGrid(),
+                otherConfig = {
+                    dataSource: {
+                        load: function () {
+                            var defer = $q.defer();
+                            fetchContainerList().then(function (data) {
+                                defer.resolve(data);
+                            });
+                            return defer.promise;
+                        },
+                        insert: function (containerObj) {
+                            saveContainer(containerObj);
+                        },
+                        update: function (key, containerObj) {
+                            updateContainer(key, containerObj);
+                        },
+                        remove: function (key) {
+                            deleteContainer(key);
+                        }
+                    },
+                    summary: {
+                        totalItems: [{
+                            column: 'name',
+                            summaryType: 'count'
+                        }]
+                    }, 
+                    columns: config.containerGridCols(),
+                    export: {
+                        enabled: true,
+                        fileName: 'Containers',
+                        allowExportSelectedData: true
+                    }
+                };
+
+            angular.extend(gridOptions, otherConfig);
+            return gridOptions;
+        };
+
+        /**
+         * Save form data
+         * @returns {Object} Container Form data
+         */
+        function saveContainer(containerObj) {
+            var ref = rootRef.child('tenant-containers').child(tenantId);
+            containerObj.user = auth.$getAuth().uid;
+            return firebaseUtils.addData(ref, containerObj);
+        }
+
+        /**
+         * Fetch container list
+         * @returns {Object} Container data
+         */
+        function fetchContainerList() {
+            var ref = rootRef.child('tenant-containers').child(tenantId).orderByChild('deactivated').equalTo(null);
+            return firebaseUtils.fetchList(ref);
+        }
+
+        /**
+         * Fetch container list
+         * @returns {Object} Container data
+         */
+        function updateContainer(key, containerData) {
+            var ref = rootRef.child('tenant-containers').child(tenantId).child(key['$id']);
+            return firebaseUtils.updateData(ref, containerData);
+        }
+
+        /**
+         * Delete Container
+         * @returns {Object} container data
+         */
+        function deleteContainer(key) {
+            var ref = rootRef.child('tenant-containers').child(tenantId).child(key['$id']);
+            return firebaseUtils.updateData(ref, {deactivated: false});
+        }
+
+    }
+}());
+(function () {
+    'use strict';
+
     customerService.$inject = ["$firebaseArray", "$firebaseObject", "$q", "authService", "auth", "firebaseUtils", "dxUtils", "config"];
     angular
         .module('app.admin.customers')
@@ -6051,112 +6157,6 @@ var rootRef = firebase.database().ref();
         function deleteCustomer(key) {
             var ref = rootRef.child('tenant-customers').child(tenantId).child(key['$id']);
             return firebaseUtils.updateData(ref, { deactivated: false });
-        }
-
-    }
-}());
-(function () {
-    'use strict';
-
-    containerService.$inject = ["$firebaseArray", "$firebaseObject", "$q", "authService", "auth", "firebaseUtils", "dxUtils", "config"];
-    angular
-        .module('app.admin.containers')
-        .factory('containerService', containerService);
-
-    /** @ngInject */
-    function containerService($firebaseArray, $firebaseObject, $q, authService, auth,firebaseUtils, dxUtils, config) {
-        var tenantId = authService.getCurrentTenant();
-        // Private variables
-
-        var service = {
-            gridOptions: gridOptions,
-            saveContainer: saveContainer,
-            updateContainer: updateContainer,
-            fetchContainerList: fetchContainerList
-        };
-
-        return service;
-
-        //////////
-
-        /**
-         * Grid Options for container list
-         * @param {Object} dataSource 
-         */
-        function gridOptions(dataSource) {
-            var gridOptions = dxUtils.createGrid(),
-                otherConfig = {
-                    dataSource: {
-                        load: function () {
-                            var defer = $q.defer();
-                            fetchContainerList().then(function (data) {
-                                defer.resolve(data);
-                            });
-                            return defer.promise;
-                        },
-                        insert: function (containerObj) {
-                            saveContainer(containerObj);
-                        },
-                        update: function (key, containerObj) {
-                            updateContainer(key, containerObj);
-                        },
-                        remove: function (key) {
-                            deleteContainer(key);
-                        }
-                    },
-                    summary: {
-                        totalItems: [{
-                            column: 'name',
-                            summaryType: 'count'
-                        }]
-                    }, 
-                    columns: config.containerGridCols(),
-                    export: {
-                        enabled: true,
-                        fileName: 'Containers',
-                        allowExportSelectedData: true
-                    }
-                };
-
-            angular.extend(gridOptions, otherConfig);
-            return gridOptions;
-        };
-
-        /**
-         * Save form data
-         * @returns {Object} Container Form data
-         */
-        function saveContainer(containerObj) {
-            var ref = rootRef.child('tenant-containers').child(tenantId);
-            containerObj.user = auth.$getAuth().uid;
-            return firebaseUtils.addData(ref, containerObj);
-        }
-
-        /**
-         * Fetch container list
-         * @returns {Object} Container data
-         */
-        function fetchContainerList() {
-            var ref = rootRef.child('tenant-containers').child(tenantId).orderByChild('deactivated').equalTo(null);
-            return firebaseUtils.fetchList(ref);
-        }
-
-        /**
-         * Fetch container list
-         * @returns {Object} Container data
-         */
-        function updateContainer(key, containerData) {
-            var ref = rootRef.child('tenant-containers').child(tenantId).child(key['$id']);
-            return firebaseUtils.updateData(ref, containerData);
-        }
-
-        /**
-         * Delete Container
-         * @returns {Object} container data
-         */
-        function deleteContainer(key) {
-            var ref = rootRef.child('tenant-containers').child(tenantId).child(key['$id']);
-            return firebaseUtils.updateData(ref, {deactivated: false});
         }
 
     }
@@ -6787,7 +6787,7 @@ var rootRef = firebase.database().ref();
             var def = $q.defer();
 
             auth.$sendPasswordResetEmail(email).then(function () {
-                console.log("Password reset email sent successfully!");
+                alert("Password reset email sent successfully!");
             }).catch(function (error) {
                 console.error("Error: ", error);
             });
@@ -6809,58 +6809,6 @@ var rootRef = firebase.database().ref();
         }
     }
 
-})();
-(function ()
-{
-    'use strict';
-
-    config.$inject = ["$stateProvider", "$translatePartialLoaderProvider", "msNavigationServiceProvider"];
-    angular
-        .module('app.auth.reset-password', [])
-        .config(config);
-
-    /** @ngInject */
-    function config($stateProvider, $translatePartialLoaderProvider, msNavigationServiceProvider)
-    {
-        // State
-        $stateProvider.state('app.auth_reset-password', {
-            url      : '/auth/reset-password',
-            views    : {
-                'main@'                                : {
-                    templateUrl: 'app/core/layouts/content-only.html',
-                    controller : 'MainController as vm'
-                },
-                'content@app.auth_reset-password': {
-                    templateUrl: 'app/main/auth/reset-password/reset-password.html',
-                    controller : 'ResetPasswordController as vm'
-                }
-            },
-            bodyClass: 'reset-password'
-        });
-
-        // Translation
-        $translatePartialLoaderProvider.addPart('app/main/auth/reset-password');
-
-    }
-
-})();
-(function ()
-{
-    'use strict';
-
-    angular
-        .module('app.auth.reset-password')
-        .controller('ResetPasswordController', ResetPasswordController);
-
-    /** @ngInject */
-    function ResetPasswordController()
-    {
-        // Data
-
-        // Methods
-
-        //////////
-    }
 })();
 (function ()
 {
@@ -6931,6 +6879,58 @@ var rootRef = firebase.database().ref();
         }
 
        
+    }
+})();
+(function ()
+{
+    'use strict';
+
+    config.$inject = ["$stateProvider", "$translatePartialLoaderProvider", "msNavigationServiceProvider"];
+    angular
+        .module('app.auth.reset-password', [])
+        .config(config);
+
+    /** @ngInject */
+    function config($stateProvider, $translatePartialLoaderProvider, msNavigationServiceProvider)
+    {
+        // State
+        $stateProvider.state('app.auth_reset-password', {
+            url      : '/auth/reset-password',
+            views    : {
+                'main@'                                : {
+                    templateUrl: 'app/core/layouts/content-only.html',
+                    controller : 'MainController as vm'
+                },
+                'content@app.auth_reset-password': {
+                    templateUrl: 'app/main/auth/reset-password/reset-password.html',
+                    controller : 'ResetPasswordController as vm'
+                }
+            },
+            bodyClass: 'reset-password'
+        });
+
+        // Translation
+        $translatePartialLoaderProvider.addPart('app/main/auth/reset-password');
+
+    }
+
+})();
+(function ()
+{
+    'use strict';
+
+    angular
+        .module('app.auth.reset-password')
+        .controller('ResetPasswordController', ResetPasswordController);
+
+    /** @ngInject */
+    function ResetPasswordController()
+    {
+        // Data
+
+        // Methods
+
+        //////////
     }
 })();
 (function ()
@@ -7093,22 +7093,22 @@ var rootRef = firebase.database().ref();
 
     config.$inject = ["$stateProvider", "$translatePartialLoaderProvider", "msNavigationServiceProvider"];
     angular
-        .module('app.auth.forgot-password', [])
+        .module('app.pages.auth.forgot-password', [])
         .config(config);
 
     /** @ngInject */
     function config($stateProvider, $translatePartialLoaderProvider, msNavigationServiceProvider)
     {
         // State
-        $stateProvider.state('app.auth_forgot-password', {
-            url      : '/auth/forgot-password',
+        $stateProvider.state('app.pages_auth_forgot-password', {
+            url      : '/pages/auth/forgot-password',
             views    : {
                 'main@'                                 : {
                     templateUrl: 'app/core/layouts/content-only.html',
                     controller : 'MainController as vm'
                 },
-                'content@app.auth_forgot-password': {
-                    templateUrl: 'app/main/auth/forgot-password/forgot-password.html',
+                'content@app.pages_auth_forgot-password': {
+                    templateUrl: 'app/auth/forgot-password/forgot-password.html',
                     controller : 'ForgotPasswordController as vm'
                 }
             },
@@ -7116,9 +7116,9 @@ var rootRef = firebase.database().ref();
         });
 
         // Translation
-        $translatePartialLoaderProvider.addPart('app/main/auth/forgot-password');
+        $translatePartialLoaderProvider.addPart('app/auth/forgot-password');
 
-      
+        // Navigation
     }
 
 })();
@@ -7126,18 +7126,26 @@ var rootRef = firebase.database().ref();
 {
     'use strict';
 
+    ForgotPasswordController.$inject = ["authService"];
     angular
-        .module('app.auth.forgot-password')
+        .module('app.pages.auth.forgot-password')
         .controller('ForgotPasswordController', ForgotPasswordController);
 
     /** @ngInject */
-    function ForgotPasswordController()
+    function ForgotPasswordController(authService)
     {
         // Data
-
+        var vm = this;
         // Methods
-
+        vm.forgotPassword = forgotPassword;
         //////////
+        
+        /**
+         * Forgot Password Email
+         */
+        function forgotPassword(form) {
+            authService.forgotPassword(form.email);
+        }
     }
 })();
 (function ()
@@ -10845,6 +10853,203 @@ var rootRef = firebase.database().ref();
 {
     'use strict';
 
+    msMaterialColorPickerController.$inject = ["$scope", "$mdColorPalette", "$mdMenu", "fuseGenerator"];
+    angular
+        .module('app.core')
+        .controller('msMaterialColorPickerController', msMaterialColorPickerController)
+        .directive('msMaterialColorPicker', msMaterialColorPicker);
+
+    /** @ngInject */
+    function msMaterialColorPickerController($scope, $mdColorPalette, $mdMenu, fuseGenerator)
+    {
+        var vm = this;
+        vm.palettes = $mdColorPalette; // Material Color Palette
+        vm.selectedPalette = false;
+        vm.selectedHues = false;
+        $scope.$selectedColor = {};
+
+        // Methods
+        vm.activateHueSelection = activateHueSelection;
+        vm.selectColor = selectColor;
+        vm.removeColor = removeColor;
+
+        /**
+         * Initialize / Watch model changes
+         */
+        $scope.$watch('ngModel', setSelectedColor);
+
+        /**
+         * Activate Hue Selection
+         * @param palette
+         * @param hues
+         */
+        function activateHueSelection(palette, hues)
+        {
+            vm.selectedPalette = palette;
+            vm.selectedHues = hues;
+        }
+
+        /**
+         * Select Color
+         * @type {selectColor}
+         */
+        function selectColor(palette, hue)
+        {
+            // Update Selected Color
+            updateSelectedColor(palette, hue);
+
+            // Update Model Value
+            updateModel();
+
+            // Hide The picker
+            $mdMenu.hide();
+        }
+
+        function removeColor()
+        {
+            vm.selectedColor = {
+                palette: '',
+                hue    : '',
+                class  : ''
+            };
+
+            activateHueSelection(false, false);
+
+            updateModel();
+        }
+
+        /**
+         * Set SelectedColor by model type
+         */
+        function setSelectedColor()
+        {
+            if ( !vm.modelCtrl.$viewValue || vm.modelCtrl.$viewValue === '' )
+            {
+                removeColor();
+                return;
+            }
+
+            var palette, hue;
+
+            // If ModelType Class
+            if ( vm.msModelType === 'class' )
+            {
+                var color = vm.modelCtrl.$viewValue.split('-');
+                if ( color.length >= 5 )
+                {
+                    palette = color[1] + '-' + color[2];
+                    hue = color[3];
+                }
+                else
+                {
+                    palette = color[1];
+                    hue = color[2];
+                }
+            }
+
+            // If ModelType Object
+            else if ( vm.msModelType === 'obj' )
+            {
+                palette = vm.modelCtrl.$viewValue.palette;
+                hue = vm.modelCtrl.$viewValue.hue || 500;
+            }
+
+            // Update Selected Color
+            updateSelectedColor(palette, hue);
+        }
+
+        /**
+         * Update Selected Color
+         * @param palette
+         * @param hue
+         */
+        function updateSelectedColor(palette, hue)
+        {
+            vm.selectedColor = {
+                palette     : palette,
+                hue         : hue,
+                class       : 'md-' + palette + '-' + hue + '-bg',
+                bgColorValue: fuseGenerator.rgba(vm.palettes[palette][hue].value),
+                fgColorValue: fuseGenerator.rgba(vm.palettes[palette][hue].contrast)
+            };
+
+            // If Model object not Equals the selectedColor update it
+            // it can be happen when the model only have pallete and hue values
+            if ( vm.msModelType === 'obj' && !angular.equals(vm.selectedColor, vm.modelCtrl.$viewValue) )
+            {
+                // Update Model Value
+                updateModel();
+            }
+
+            activateHueSelection(palette, vm.palettes[palette]);
+
+            $scope.$selectedColor = vm.selectedColor;
+        }
+
+        /**
+         * Update Model Value by model type
+         */
+        function updateModel()
+        {
+            if ( vm.msModelType === 'class' )
+            {
+                vm.modelCtrl.$setViewValue(vm.selectedColor.class);
+            }
+            else if ( vm.msModelType === 'obj' )
+            {
+                vm.modelCtrl.$setViewValue(vm.selectedColor);
+            }
+        }
+    }
+
+    /** @ngInject */
+    function msMaterialColorPicker()
+    {
+        return {
+            require    : ['msMaterialColorPicker', 'ngModel'],
+            restrict   : 'E',
+            scope      : {
+                ngModel    : '=',
+                msModelType: '@?'
+            },
+            controller : 'msMaterialColorPickerController as vm',
+            transclude : true,
+            templateUrl: 'app/core/directives/ms-material-color-picker/ms-material-color-picker.html',
+            link       : function (scope, element, attrs, controllers, transclude)
+            {
+                var ctrl = controllers[0];
+
+                /**
+                 *  Pass model controller to directive controller
+                 */
+                ctrl.modelCtrl = controllers[1];
+
+                /**
+                 * ModelType: 'obj', 'class'(default)
+                 * @type {string|string}
+                 */
+                ctrl.msModelType = scope.msModelType || 'class';
+
+                transclude(scope, function (clone)
+                {
+                    clone = clone.filter(function (i, el)
+                    {
+                        return ( el.nodeType === 1 ) ? true : false;
+                    });
+
+                    if ( clone.length )
+                    {
+                        element.find('ms-color-picker-button').replaceWith(clone);
+                    }
+                });
+            }
+        };
+    }
+})();
+(function ()
+{
+    'use strict';
+
     msNavIsFoldedDirective.$inject = ["$document", "$rootScope", "msNavFoldService"];
     msNavDirective.$inject = ["$rootScope", "$mdComponentRegistry", "msNavFoldService"];
     msNavToggleDirective.$inject = ["$rootScope", "$q", "$animate", "$state"];
@@ -11595,203 +11800,6 @@ var rootRef = firebase.database().ref();
                         return deferred.promise;
                     }
                 };
-            }
-        };
-    }
-})();
-(function ()
-{
-    'use strict';
-
-    msMaterialColorPickerController.$inject = ["$scope", "$mdColorPalette", "$mdMenu", "fuseGenerator"];
-    angular
-        .module('app.core')
-        .controller('msMaterialColorPickerController', msMaterialColorPickerController)
-        .directive('msMaterialColorPicker', msMaterialColorPicker);
-
-    /** @ngInject */
-    function msMaterialColorPickerController($scope, $mdColorPalette, $mdMenu, fuseGenerator)
-    {
-        var vm = this;
-        vm.palettes = $mdColorPalette; // Material Color Palette
-        vm.selectedPalette = false;
-        vm.selectedHues = false;
-        $scope.$selectedColor = {};
-
-        // Methods
-        vm.activateHueSelection = activateHueSelection;
-        vm.selectColor = selectColor;
-        vm.removeColor = removeColor;
-
-        /**
-         * Initialize / Watch model changes
-         */
-        $scope.$watch('ngModel', setSelectedColor);
-
-        /**
-         * Activate Hue Selection
-         * @param palette
-         * @param hues
-         */
-        function activateHueSelection(palette, hues)
-        {
-            vm.selectedPalette = palette;
-            vm.selectedHues = hues;
-        }
-
-        /**
-         * Select Color
-         * @type {selectColor}
-         */
-        function selectColor(palette, hue)
-        {
-            // Update Selected Color
-            updateSelectedColor(palette, hue);
-
-            // Update Model Value
-            updateModel();
-
-            // Hide The picker
-            $mdMenu.hide();
-        }
-
-        function removeColor()
-        {
-            vm.selectedColor = {
-                palette: '',
-                hue    : '',
-                class  : ''
-            };
-
-            activateHueSelection(false, false);
-
-            updateModel();
-        }
-
-        /**
-         * Set SelectedColor by model type
-         */
-        function setSelectedColor()
-        {
-            if ( !vm.modelCtrl.$viewValue || vm.modelCtrl.$viewValue === '' )
-            {
-                removeColor();
-                return;
-            }
-
-            var palette, hue;
-
-            // If ModelType Class
-            if ( vm.msModelType === 'class' )
-            {
-                var color = vm.modelCtrl.$viewValue.split('-');
-                if ( color.length >= 5 )
-                {
-                    palette = color[1] + '-' + color[2];
-                    hue = color[3];
-                }
-                else
-                {
-                    palette = color[1];
-                    hue = color[2];
-                }
-            }
-
-            // If ModelType Object
-            else if ( vm.msModelType === 'obj' )
-            {
-                palette = vm.modelCtrl.$viewValue.palette;
-                hue = vm.modelCtrl.$viewValue.hue || 500;
-            }
-
-            // Update Selected Color
-            updateSelectedColor(palette, hue);
-        }
-
-        /**
-         * Update Selected Color
-         * @param palette
-         * @param hue
-         */
-        function updateSelectedColor(palette, hue)
-        {
-            vm.selectedColor = {
-                palette     : palette,
-                hue         : hue,
-                class       : 'md-' + palette + '-' + hue + '-bg',
-                bgColorValue: fuseGenerator.rgba(vm.palettes[palette][hue].value),
-                fgColorValue: fuseGenerator.rgba(vm.palettes[palette][hue].contrast)
-            };
-
-            // If Model object not Equals the selectedColor update it
-            // it can be happen when the model only have pallete and hue values
-            if ( vm.msModelType === 'obj' && !angular.equals(vm.selectedColor, vm.modelCtrl.$viewValue) )
-            {
-                // Update Model Value
-                updateModel();
-            }
-
-            activateHueSelection(palette, vm.palettes[palette]);
-
-            $scope.$selectedColor = vm.selectedColor;
-        }
-
-        /**
-         * Update Model Value by model type
-         */
-        function updateModel()
-        {
-            if ( vm.msModelType === 'class' )
-            {
-                vm.modelCtrl.$setViewValue(vm.selectedColor.class);
-            }
-            else if ( vm.msModelType === 'obj' )
-            {
-                vm.modelCtrl.$setViewValue(vm.selectedColor);
-            }
-        }
-    }
-
-    /** @ngInject */
-    function msMaterialColorPicker()
-    {
-        return {
-            require    : ['msMaterialColorPicker', 'ngModel'],
-            restrict   : 'E',
-            scope      : {
-                ngModel    : '=',
-                msModelType: '@?'
-            },
-            controller : 'msMaterialColorPickerController as vm',
-            transclude : true,
-            templateUrl: 'app/core/directives/ms-material-color-picker/ms-material-color-picker.html',
-            link       : function (scope, element, attrs, controllers, transclude)
-            {
-                var ctrl = controllers[0];
-
-                /**
-                 *  Pass model controller to directive controller
-                 */
-                ctrl.modelCtrl = controllers[1];
-
-                /**
-                 * ModelType: 'obj', 'class'(default)
-                 * @type {string|string}
-                 */
-                ctrl.msModelType = scope.msModelType || 'class';
-
-                transclude(scope, function (clone)
-                {
-                    clone = clone.filter(function (i, el)
-                    {
-                        return ( el.nodeType === 1 ) ? true : false;
-                    });
-
-                    if ( clone.length )
-                    {
-                        element.find('ms-color-picker-button').replaceWith(clone);
-                    }
-                });
             }
         };
     }
